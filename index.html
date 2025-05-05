@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- CSP adjusted for Firebase and development; tighten for production -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://www.gstatic.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' wss://*.firebaseio.com https://*.googleapis.com https://firebasestorage.googleapis.com; img-src 'self' data:;">
+    <title>TMC Student Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div id="studentPanel" class="dashboard hidden">
+        <!-- Mobile Header -->
+        <header class="mobile-header">
+            <h1 id="mobileStudentHeaderTitle">Student Portal</h1>
+            <button class="hamburger" id="studentHamburgerBtn" aria-label="Toggle menu">☰</button>
+        </header>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="studentSidebar">
+            <h2>Student Dashboard</h2>
+            <button class="close-sidebar">×</button>
+            <nav>
+                <button title="Home Dashboard" id="studentHomeBtn">🏠 Home</button>
+                <button title="View homework" id="homeworkListBtn">📝 Homework</button>
+                <button title="Submit homework" id="submitHomeworkBtn">📤 Submit Homework</button>
+                <button title="View attendance" id="attendanceBtn">📅 Attendance</button>
+                <button title="View sessional marks" id="sessionalMarksBtn">📊 Sessional Marks</button>
+                <button title="View analytics" id="studentAnalyticsBtn">📈 Analytics</button>
+                <button title="Settings" id="studentSettingsBtn">⚙️ Settings</button>
+            </nav>
+            <button class="logout-btn" title="Logout" id="studentLogoutBtn">🚪 Logout</button>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="header">
+                <h1 id="studentHeaderTitle">Student Portal</h1>
+                <div id="studentLoading" class="loading hidden">Loading...</div>
+            </header>
+
+            <!-- Home Section -->
+            <section id="studentHomeSection" class="data-section">
+                <h2>Welcome, <span id="studentName"></span>!</h2>
+                <div class="stats-grid">
+                    <div class="stat-card"><span>Pending Homework</span><span id="pendingHomework">0</span></div>
+                    <div class="stat-card"><span>Submitted Homework</span><span id="submittedHomework">0</span></div>
+                    <div class="stat-card"><span>Attendance Rate</span><span id="attendanceRate">0%</span></div>
+                    <div class="stat-card"><span>Next Due Date</span><span id="nextDueDate">N/A</span></div>
+                </div>
+                <div class="daily-quote"><strong>Daily Quote:</strong> <span id="dailyQuote"></span></div>
+            </section>
+
+            <!-- Homework List Section -->
+            <section id="homeworkListSection" class="data-section hidden">
+                <h2>Homework List</h2>
+                <div class="filter-bar">
+                    <input type="text" id="homeworkSearchInput" placeholder="Search by title">
+                    <select id="homeworkStatusFilter">
+                        <option value="">All Status</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Submitted">Submitted</option>
+                    </select>
+                </div>
+                <table id="homeworkTable">
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Description</th>
+                            <th>Due Date</th>
+                            <th>File</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <div class="pagination">
+                    <button id="homeworkPrevPageBtn">Previous</button>
+                    <span id="homeworkPageInfo"></span>
+                    <button id="homeworkNextPageBtn">Next</button>
+                </div>
+            </section>
+
+            <!-- Submit Homework Section -->
+            <section id="submitHomeworkSection" class="form-section hidden">
+                <h2>Submit Homework</h2>
+                <form id="submitHomeworkForm" class="form-grid">
+                    <select id="homeworkSelect" required>
+                        <option value="">Select Homework</option>
+                    </select>
+                    <input type="file" id="submissionFile" required>
+                    <textarea id="submissionNotes" placeholder="Notes (optional)"></textarea>
+                    <button type="button" id="submitHomeworkSubmitBtn" class="form-btn">Submit</button>
+                </form>
+            </section>
+
+            <!-- Attendance Section -->
+            <section id="attendanceSection" class="data-section hidden">
+                <h2>Attendance</h2>
+                <div class="filter-bar">
+                    <input type="date" id="attendanceDateFilter">
+                </div>
+                <table id="attendanceTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+
+            <!-- Sessional Marks Section -->
+            <section id="sessionalMarksSection" class="data-section hidden">
+                <h2>Sessional Marks</h2>
+                <div class="filter-bar">
+                    <input type="text" id="marksSearchInput" placeholder="Search by subject">
+                    <select id="marksExamTypeFilter">
+                        <option value="">All Exam Types</option>
+                        <option value="Midterm">Midterm</option>
+                        <option value="Final">Final</option>
+                        <option value="Quiz">Quiz</option>
+                        <option value="Assignment">Assignment</option>
+                    </select>
+                </div>
+                <table id="marksTable">
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Exam Type</th>
+                            <th>Marks</th>
+                            <th>Max Marks</th>
+                            <th>Percentage</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <div class="pagination">
+                    <button id="marksPrevPageBtn">Previous</button>
+                    <span id="marksPageInfo"></span>
+                    <button id="marksNextPageBtn">Next</button>
+                </div>
+            </section>
+
+            <!-- Analytics Section -->
+            <section id="studentAnalyticsSection" class="data-section hidden">
+                <h2>Analytics</h2>
+                <div class="charts">
+                    <canvas id="homeworkStatusChart" width="400" height="200"></canvas>
+                    <canvas id="marksDistributionChart" width="400" height="200"></canvas>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section id="studentSettingsSection" class="data-section hidden">
+                <h2>Settings</h2>
+                <div class="form-grid">
+                    <label>Roll Number:</label>
+                    <input type="text" id="settingsRollNumber" disabled>
+                    <label>Class:</label>
+                    <input type="text" id="settingsClass" disabled>
+                    <label>Theme:</label>
+                    <select id="studentThemeSelect">
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="system">System</option>
+                    </select>
+                    <label><input type="checkbox" id="homeworkNotifications"> Homework Updates</label>
+                    <label><input type="checkbox" id="marksNotifications"> Marks Updates</label>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="studentLoginModal" class="modal modal-visible">
+        <div class="modal-content">
+            <span class="close-btn" id="closeStudentLoginBtn">×</span>
+            <h2>Student Login</h2>
+            <form id="studentLoginForm" class="form-grid">
+                <input type="text" id="studentLoginRollNumber" placeholder="Roll Number" required>
+                <input type="password" id="studentLoginPassword" placeholder="Password" required>
+                <button type="submit" id="studentLoginBtn" class="form-btn">Login</button>
+            </form>
+            <div id="studentLoginError" class="error hidden"></div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-compat.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
