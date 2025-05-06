@@ -222,6 +222,7 @@ body {
     box-shadow: var(--shadow);
     text-align: center;
     transition: var(--transition);
+    cursor: pointer;
 }
 
 .stat-card:hover {
@@ -331,6 +332,29 @@ tr:hover {
 
 .submit-btn:hover {
     background: var(--secondary-color);
+}
+
+.upload-btn {
+    display: inline-block;
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    background: var(--gradient);
+    color: #fff;
+    cursor: pointer;
+    transition: var(--transition);
+    text-align: center;
+    line-height: 1.5;
+}
+
+.upload-btn:hover {
+    background: var(--secondary-color);
+    transform: translateY(-2px);
+}
+
+.upload-btn input[type="file"] {
+    display: none;
 }
 
 .download-btn {
@@ -504,6 +528,184 @@ canvas {
     display: none;
 }
 
+/* Profile Section Styles */
+.profile-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+}
+
+.profile-card {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 24px;
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+
+.profile-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.profile-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: var(--gradient);
+}
+
+.profile-header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.profile-avatar {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 16px;
+}
+
+.profile-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid var(--primary-color);
+    box-shadow: var(--shadow);
+}
+
+.avatar-upload {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background: var(--primary-color);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.avatar-upload:hover {
+    background: var(--secondary-color);
+}
+
+.avatar-upload input {
+    display: none;
+}
+
+.avatar-upload-icon {
+    color: #fff;
+    font-size: 18px;
+}
+
+.profile-header h3 {
+    font-size: 24px;
+    font-weight: 500;
+    color: var(--primary-color);
+    margin-bottom: 8px;
+}
+
+.profile-header p {
+    font-size: 16px;
+    color: var(--text-color);
+    opacity: 0.8;
+}
+
+.profile-details {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.detail-label {
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.edit-profile-btn {
+    background: var(--gradient);
+    color: #fff;
+    width: 100%;
+    margin-top: 16px;
+}
+
+.edit-profile-btn:hover {
+    background: var(--secondary-color);
+}
+
+.achievements-card h3 {
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--primary-color);
+    margin-bottom: 16px;
+}
+
+.achievements-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.achievement-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: rgba(25, 118, 210, 0.05);
+    border-radius: 8px;
+    transition: var(--transition);
+}
+
+.achievement-item:hover {
+    background: rgba(25, 118, 210, 0.1);
+}
+
+.achievement-icon {
+    font-size: 24px;
+}
+
+.achievement-title {
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.achievement-desc {
+    font-size: 14px;
+    color: var(--text-color);
+    opacity: 0.7;
+}
+
+.view-all-btn {
+    background: transparent;
+    border: 1px solid var(--primary-color);
+    color: var(--primary-color);
+    width: 100%;
+    margin-top: 16px;
+}
+
+.view-all-btn:hover {
+    background: var(--primary-color);
+    color: #fff;
+}
+
 @keyframes slideIn {
     from { transform: translateY(-50px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
@@ -550,6 +752,10 @@ canvas {
     .stats-grid {
         grid-template-columns: 1fr;
     }
+
+    .profile-container {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 480px) {
@@ -570,4 +776,19 @@ canvas {
     .filter-bar select {
         min-width: 100%;
     }
+
+    .profile-avatar {
+        width: 100px;
+        height: 100px;
+    }
+
+    .avatar-upload {
+        width: 32px;
+        height: 32px;
+    }
+
+    .avatar-upload-icon {
+        font-size: 16px;
+    }
 }
+
