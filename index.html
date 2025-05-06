@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- CSP adjusted for Firebase and development; tighten for production -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://www.gstatic.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' wss://*.firebaseio.com https://*.googleapis.com https://firebasestorage.googleapis.com; img-src 'self' data:;">
     <title>TMC Student Portal</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-compat.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div id="studentPanel" class="dashboard hidden">
@@ -25,11 +24,11 @@
             <button class="close-sidebar">×</button>
             <nav>
                 <button title="Home Dashboard" id="studentHomeBtn">🏠 Home</button>
-                <button title="View homework" id="homeworkListBtn">📝 Homework</button>
-                <button title="Submit homework" id="submitHomeworkBtn">📤 Submit Homework</button>
+                <button title="View and submit homework" id="homeworkListBtn">📝 Homework</button>
                 <button title="View attendance" id="attendanceBtn">📅 Attendance</button>
                 <button title="View sessional marks" id="sessionalMarksBtn">📊 Sessional Marks</button>
                 <button title="View analytics" id="studentAnalyticsBtn">📈 Analytics</button>
+                <button title="View and update profile" id="profileBtn">👤 Profile</button>
                 <button title="Settings" id="studentSettingsBtn">⚙️ Settings</button>
             </nav>
             <button class="logout-btn" title="Logout" id="studentLogoutBtn">🚪 Logout</button>
@@ -49,14 +48,14 @@
                     <div class="stat-card"><span>Pending Homework</span><span id="pendingHomework">0</span></div>
                     <div class="stat-card"><span>Submitted Homework</span><span id="submittedHomework">0</span></div>
                     <div class="stat-card"><span>Attendance Rate</span><span id="attendanceRate">0%</span></div>
-                    <div class="stat-card"><span>Next Due Date</span><span id="nextDueDate">N/A</span></div>
+                    <div class="stat-card"><span>Sessional Marks Avg</span><span id="sessionalMarksAvg">N/A</span></div>
                 </div>
                 <div class="daily-quote"><strong>Daily Quote:</strong> <span id="dailyQuote"></span></div>
             </section>
 
-            <!-- Homework List Section -->
+            <!-- Homework Section -->
             <section id="homeworkListSection" class="data-section hidden">
-                <h2>Homework List</h2>
+                <h2>Homework</h2>
                 <div class="filter-bar">
                     <input type="text" id="homeworkSearchInput" placeholder="Search by title">
                     <select id="homeworkStatusFilter">
@@ -83,19 +82,6 @@
                     <span id="homeworkPageInfo"></span>
                     <button id="homeworkNextPageBtn">Next</button>
                 </div>
-            </section>
-
-            <!-- Submit Homework Section -->
-            <section id="submitHomeworkSection" class="form-section hidden">
-                <h2>Submit Homework</h2>
-                <form id="submitHomeworkForm" class="form-grid">
-                    <select id="homeworkSelect" required>
-                        <option value="">Select Homework</option>
-                    </select>
-                    <input type="file" id="submissionFile" required>
-                    <textarea id="submissionNotes" placeholder="Notes (optional)"></textarea>
-                    <button type="button" id="submitHomeworkSubmitBtn" class="form-btn">Submit</button>
-                </form>
             </section>
 
             <!-- Attendance Section -->
@@ -157,6 +143,85 @@
                 </div>
             </section>
 
+            <!-- Profile Section -->
+            <section id="profileSection" class="data-section hidden">
+                <h2>Your Profile</h2>
+                <div class="profile-container">
+                    <!-- Profile Card -->
+                    <div class="profile-card">
+                        <div class="profile-header">
+                            <div class="profile-avatar">
+                                <img id="profileAvatar" src="https://via.placeholder.com/100" alt="Profile Avatar">
+                                <label class="avatar-upload">
+                                    <input type="file" id="avatarUpload" accept="image/*">
+                                    <span class="avatar-upload-icon">📷</span>
+                                </label>
+                            </div>
+                            <h3 id="profileCardName">Student Name</h3>
+                            <p id="profileCardRollNumber">Roll Number: N/A</p>
+                        </div>
+                        <div class="profile-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Class:</span>
+                                <span id="profileCardClass">N/A</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Email:</span>
+                                <span id="profileCardEmail">N/A</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Last Login:</span>
+                                <span id="profileLastLogin">N/A</span>
+                            </div>
+                        </div>
+                        <button class="action-btn edit-profile-btn" id="editProfileBtn">Edit Profile</button>
+                    </div>
+
+                    <!-- Achievements Card -->
+                    <div class="profile-card achievements-card">
+                        <h3>Achievements</h3>
+                        <div class="achievements-list">
+                            <div class="achievement-item">
+                                <span class="achievement-icon">🏆</span>
+                                <div>
+                                    <p class="achievement-title">Perfect Attendance</p>
+                                    <p class="achievement-desc">Achieved 100% attendance this semester!</p>
+                                </div>
+                            </div>
+                            <div class="achievement-item">
+                                <span class="achievement-icon">🌟</span>
+                                <div>
+                                    <p class="achievement-title">Top Scorer</p>
+                                    <p class="achievement-desc">Scored highest in Math midterm.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="action-btn view-all-btn">View All Achievements</button>
+                    </div>
+
+                    <!-- Update Profile Modal -->
+                    <div id="editProfileModal" class="modal">
+                        <div class="modal-content">
+                            <span class="close-btn" id="closeEditProfileBtn">×</span>
+                            <h2>Edit Profile</h2>
+                            <form id="profileForm" class="form-grid">
+                                <label for="profileName">Full Name:</label>
+                                <input type="text" id="profileName" required>
+                                <label for="profileEmail">Email:</label>
+                                <input type="email" id="profileEmail">
+                                <label for="profilePassword">New Password:</label>
+                                <input type="password" id="profilePassword" placeholder="Enter new password">
+                                <label for="profileBio">Bio:</label>
+                                <textarea id="profileBio" placeholder="Tell us about yourself"></textarea>
+                                <label for="profilePhone">Phone Number:</label>
+                                <input type="tel" id="profilePhone" placeholder="Enter phone number">
+                                <button type="submit" id="profileSubmitBtn" class="form-btn">Save Changes</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Settings Section -->
             <section id="studentSettingsSection" class="data-section hidden">
                 <h2>Settings</h2>
@@ -192,9 +257,6 @@
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-compat.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
