@@ -14,8 +14,8 @@ const firebaseConfig = {
 
 // Initialize Firebase
 try {
-    if (!firebase) {
-        throw new Error("Firebase SDK not loaded");
+    if (typeof firebase === 'undefined') {
+        throw new Error("Firebase SDK not loaded. Check network or script inclusion.");
     }
     if (!firebaseConfig.apiKey || !firebaseConfig.databaseURL || !firebaseConfig.projectId) {
         throw new Error("Invalid Firebase configuration");
@@ -91,9 +91,22 @@ async function studentLogin(rollNumber, password) {
 
 async function validateSession() {
     try {
-        const session = JSON.parse(localStorage.getItem('studentSession'));
+        const sessionData = localStorage.getItem('studentSession');
+        if (!sessionData) {
+            console.log("No session data found in localStorage");
+            return null;
+        }
+        let session;
+        try {
+            session = JSON.parse(sessionData);
+        } catch (parseError) {
+            console.error("Error parsing session data:", parseError);
+            localStorage.removeItem('studentSession');
+            return null;
+        }
         if (!session || !session.teacherId || !session.studentId || !session.sessionToken) {
-            console.log("No valid session found in localStorage");
+            console.log("Incomplete session data");
+            localStorage.removeItem('studentSession');
             return null;
         }
         const snapshot = await database.ref(`teachers/${session.teacherId}/students/${session.studentId}`).once("value");
@@ -103,7 +116,7 @@ async function validateSession() {
             localStorage.removeItem('studentSession');
             return null;
         }
-        console.log("Session validated successfully:", student);
+        console.log("Session validated successfully, studentData:", JSON.stringify(student, null, 2));
         return {
             teacherUid: session.teacherId,
             id: session.studentId,
@@ -207,24 +220,12 @@ async function getData(path) {
 }
 
 // UI Operations
-function updateFormOptions(homework) {
-    const select = document.getElementById("homeworkSelect");
-    if (select) {
-        select.innerHTML = `<option value="">Select Homework</option>` + 
-            homework
-                .filter(h => h.status === "Pending" && (h.target === "all" || h.targetSpecific === studentData?.id || h.targetSpecific === studentData?.classId))
-                .map(h => `<option value="${h.id}">${h.title}</option>`).join("");
-    } else {
-        console.warn("homeworkSelect element not found");
-    }
-}
-
-function updateClassDisplay(classes, studentData) {
-    const classInput = document.getElementById("settingsClass");
+function updateClassDisplay(classes, studentData, elementId) {
+    const classInput = document.getElementById(elementId);
     if (classInput) {
-        classInput.value = classes.find(c => c.id === studentData?.classId)?.name || "Unknown";
+        classInput.textContent = classes.find(c => c.id === studentData?.classId)?.name || "Unknown";
     } else {
-        console.warn("settingsClass element not found");
+        console.warn(`${elementId} element not found`);
     }
 }
 
@@ -235,7 +236,13 @@ function loadHomework(homework, studentData, page) {
         return;
     }
     currentPage = Math.max(1, page);
-    let filtered = homework.filter(h => h.target === "all" || h.targetSpecific === studentData.id || h.targetSpecific === studentData.classId);
+    let filtered = homework.filter(h => {
+        if (!h || !h.title || !h.status) {
+            console.warn("Invalid homework item:", h);
+            return false;
+        }
+        return h.target === "all" || h.targetSpecific === studentData.id || h.targetSpecific === studentData.classId;
+    });
     const search = document.getElementById("homeworkSearchInput")?.value.toLowerCase() || "";
     const statusFilter = document.getElementById("homeworkStatusFilter")?.value || "";
     if (search) filtered = filtered.filter(h => h.title.toLowerCase().includes(search));
@@ -250,11 +257,16 @@ function loadHomework(homework, studentData, page) {
         tbody.innerHTML = paginated.length ? paginated.map(h => `
             <tr>
                 <td>${h.title}</td>
-                <td>${h.description}</td>
-                <td>${h.dueDate}</td>
+                <td>${h.description || "N/A"}</td>
+                <td>${h.dueDate || "N/A"}</td>
                 <td>${h.fileUrl ? `<a href="${h.fileUrl}" target="_blank" class="action-btn download-btn">Download</a>` : "None"}</td>
                 <td>${h.status}</td>
-                <td>${h.status === "Pending" ? `<button class="action-btn submit-btn" data-id="${h.id}">Submit</button>` : "Submitted"}</td>
+                <td>${h.status === "Pending" ? `
+                    <label class="upload-btn">
+                        Upload
+                        <input type="file" class="upload-input" data-id="${h.id}" accept=".pdf,.doc,.docx">
+                    </label>` : "Submitted"}
+                </td>
             </tr>
         `).join("") : "<tr><td colspan='6'>No homework found.</td></tr>";
     } else {
@@ -366,8 +378,8 @@ function loadAnalytics(homework, sessionalMarks, studentData) {
         return;
     }
     if (!window.Chart) {
-        console.error("Chart.js not loaded");
-        showNotification("Error: Chart library not loaded", "error");
+        console.error("Chart.js not loaded. Ensure the Chart.js script is included in the HTML.");
+        showNotification("Error: Chart library not loaded. Please check your internet connection or contact support.", "error");
         return;
     }
     const ctxIds = ["homeworkStatusChart", "marksDistributionChart"];
@@ -422,16 +434,50 @@ function loadAnalytics(homework, sessionalMarks, studentData) {
     }
 }
 
+function loadProfile(studentData, classes) {
+    if (!studentData) {
+        console.warn("loadProfile: studentData is null");
+        showNotification("Error: Student data not loaded", "error");
+        return;
+    }
+    // Profile Card
+    const cardName = document.getElementById("profileCardName");
+    const cardRollNumber = document.getElementById("profileCardRollNumber");
+    const cardClass = document.getElementById("profileCardClass");
+    const cardEmail = document.getElementById("profileCardEmail");
+    const lastLogin = document.getElementById("profileLastLogin");
+    const avatarImg = document.getElementById("profileAvatar");
+
+    if (cardName) cardName.textContent = studentData.name || "Unknown";
+    if (cardRollNumber) cardRollNumber.textContent = `Roll Number: ${studentData.rollNumber || "N/A"}`;
+    if (cardClass) updateClassDisplay(classes, studentData, "profileCardClass");
+    if (cardEmail) cardEmail.textContent = studentData.email || "N/A";
+    if (lastLogin) lastLogin.textContent = studentData.lastLogin ? new Date(studentData.lastLogin).toLocaleString() : "N/A";
+    if (avatarImg) {
+        avatarImg.src = studentData.avatarUrl || "https://via.placeholder.com/150"; // Default placeholder
+        console.log("Profile avatar set to:", avatarImg.src);
+    } else {
+        console.warn("profileAvatar element not found");
+    }
+
+    // Edit Profile Form
+    const nameInput = document.getElementById("profileName");
+    const emailInput = document.getElementById("profileEmail");
+    const passwordInput = document.getElementById("profilePassword");
+    const bioInput = document.getElementById("profileBio");
+    const phoneInput = document.getElementById("profilePhone");
+
+    if (nameInput) nameInput.value = studentData.name || "";
+    if (emailInput) emailInput.value = studentData.email || "";
+    if (passwordInput) passwordInput.value = "";
+    if (bioInput) bioInput.value = studentData.bio || "";
+    if (phoneInput) phoneInput.value = studentData.phone || "";
+}
+
 function toggleSection(sectionId) {
     document.querySelectorAll(".data-section, .form-section").forEach(section => {
         section.classList.toggle("hidden", section.id !== sectionId);
     });
-}
-
-function resetForm(formId) {
-    const form = document.getElementById(formId);
-    if (form) form.reset();
-    else console.warn(`Form ${formId} not found`);
 }
 
 function showNotification(message, type = "success") {
@@ -481,7 +527,14 @@ function initializeTheme() {
     const theme = localStorage.getItem("theme") || "light";
     document.documentElement.setAttribute("data-theme", theme);
     const themeSelect = document.getElementById("studentThemeSelect");
-    if (themeSelect) themeSelect.value = theme;
+    if (themeSelect) {
+        themeSelect.value = theme;
+        themeSelect.addEventListener("change", () => {
+            const newTheme = themeSelect.value;
+            document.documentElement.setAttribute("data-theme", newTheme);
+            localStorage.setItem("theme", newTheme);
+        });
+    }
 }
 
 function setupMobileMenu() {
@@ -490,11 +543,13 @@ function setupMobileMenu() {
     if (hamburgerBtn && sidebar) {
         hamburgerBtn.addEventListener("click", () => {
             sidebar.classList.toggle("active");
+            document.body.classList.toggle("sidebar-active", sidebar.classList.contains("active"));
             document.body.style.overflow = sidebar.classList.contains("active") ? "hidden" : "auto";
         });
         document.addEventListener("click", (e) => {
             if (window.innerWidth <= 768 && !sidebar.contains(e.target) && !hamburgerBtn.contains(e.target) && sidebar.classList.contains("active")) {
                 sidebar.classList.remove("active");
+                document.body.classList.remove("sidebar-active");
                 document.body.style.overflow = "auto";
             }
         });
@@ -514,7 +569,6 @@ function setupRealTimeListeners() {
         "homework": data => {
             homework = data || [];
             loadHomework(homework, studentData, 1);
-            updateFormOptions(homework);
             loadAnalytics(homework, sessionalMarks, studentData);
             loadHomeData();
         },
@@ -532,7 +586,10 @@ function setupRealTimeListeners() {
         },
         "classes": data => {
             classes = data || [];
-            updateClassDisplay(classes, studentData);
+            classes.sort((a, b) => a.name.localeCompare(b.name));
+            updateClassDisplay(classes, studentData, "settingsClass");
+            updateClassDisplay(classes, studentData, "profileCardClass");
+            loadProfile(studentData, classes);
         }
     };
     Object.entries(paths).forEach(([path, callback]) => {
@@ -541,6 +598,12 @@ function setupRealTimeListeners() {
     });
     return () => listeners.forEach(cleanup => cleanup());
 }
+
+// Cleanup on page unload
+window.onbeforeunload = () => {
+    const cleanup = setupRealTimeListeners();
+    cleanup();
+};
 
 function loadHomeData() {
     if (!studentData) {
@@ -571,11 +634,12 @@ function loadHomeData() {
     const attendanceRateEl = document.getElementById("attendanceRate");
     if (attendanceRateEl) attendanceRateEl.textContent = totalDays ? `${Math.round((presentCount / totalDays) * 100)}%` : "0%";
 
-    const nextDue = filteredHomework
-        .filter(h => h.status === "Pending")
-        .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0]?.dueDate || "N/A";
-    const nextDueDateEl = document.getElementById("nextDueDate");
-    if (nextDueDateEl) nextDueDateEl.textContent = nextDue;
+    const filteredMarks = sessionalMarks.filter(m => m.studentId === studentData.id);
+    const avgMarks = filteredMarks.length 
+        ? (filteredMarks.reduce((sum, m) => sum + (m.marks / m.maxMarks * 100), 0) / filteredMarks.length).toFixed(2) + "%"
+        : "N/A";
+    const sessionalMarksAvgEl = document.getElementById("sessionalMarksAvg");
+    if (sessionalMarksAvgEl) sessionalMarksAvgEl.textContent = avgMarks;
 
     const quotes = ["Stay focused!", "Keep learning!", "You got this!"];
     const dailyQuoteEl = document.getElementById("dailyQuote");
@@ -599,14 +663,79 @@ async function submitHomework(homeworkId, file, notes) {
         const fileRef = storage.ref(`teachers/${teacherId}/submissions/${studentData.id}/${Date.now()}_${file.name}`);
         await fileRef.put(file);
         const fileUrl = await fileRef.getDownloadURL();
+        const submissionData = {
+            studentId: studentData.id,
+            fileUrl,
+            notes,
+            submittedAt: new Date().toISOString()
+        };
+        await database.ref(`teachers/${teacherId}/homework/${homeworkId}/submissions/${studentData.id}`).set(submissionData);
         await updateData(`teachers/${teacherId}/homework/${homeworkId}`, {
-            status: "Submitted",
-            submission: { studentId: studentData.id, fileUrl, notes, submittedAt: new Date().toISOString() }
+            status: "Submitted"
         });
         showNotification("Homework submitted successfully!");
     } catch (error) {
         console.error("Error submitting homework:", error);
         showNotification("Error submitting homework: " + error.message, "error");
+    } finally {
+        hideLoading();
+    }
+}
+
+async function updateProfile(name, email, password, bio, phone, avatarFile) {
+    try {
+        if (!studentData || !teacherId) {
+            throw new Error("User not authenticated");
+        }
+        // Validation
+        if (!name || !name.trim()) {
+            throw new Error("Name is required");
+        }
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            throw new Error("Invalid email format");
+        }
+        if (password && password.length < 6) {
+            throw new Error("Password must be at least 6 characters long");
+        }
+        if (phone && !/^\+?[1-9]\d{1,14}$/.test(phone)) {
+            throw new Error("Invalid phone number format");
+        }
+        const updates = { 
+            name: name.trim(),
+            lastLogin: new Date().toISOString()
+        };
+        if (email) updates.email = email.trim();
+        if (password) updates.password = password;
+        if (bio) updates.bio = bio.trim();
+        if (phone) updates.phone = phone.trim();
+
+        showLoading();
+        if (avatarFile) {
+            const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
+            const maxSize = 2 * 1024 * 1024; // 2MB
+            if (!allowedTypes.includes(avatarFile.type)) {
+                throw new Error("Only JPEG, PNG, or GIF images are allowed");
+            }
+            if (avatarFile.size > maxSize) {
+                throw new Error("Avatar size exceeds 2MB limit");
+            }
+            const avatarRef = storage.ref(`teachers/${teacherId}/avatars/${studentData.id}/${Date.now()}_${avatarFile.name}`);
+            await avatarRef.put(avatarFile);
+            updates.avatarUrl = await avatarRef.getDownloadURL();
+            console.log("Avatar uploaded, URL:", updates.avatarUrl);
+        }
+
+        console.log("Updating profile with data:", JSON.stringify(updates, null, 2));
+        await updateData(`teachers/${teacherId}/students/${studentData.id}`, updates);
+        studentData = { ...studentData, ...updates };
+        console.log("Profile updated, new studentData:", JSON.stringify(studentData, null, 2));
+        showNotification("Profile updated successfully!");
+        loadProfile(studentData, classes);
+        loadHomeData();
+    } catch (error) {
+        console.error("Error updating profile:", error);
+        showNotification(`Error updating profile: ${error.message}`, "error");
+        throw error;
     } finally {
         hideLoading();
     }
@@ -625,13 +754,15 @@ function setupEventListeners() {
     // Close Login Modal
     const closeLoginBtn = document.getElementById("closeStudentLoginBtn");
     if (closeLoginBtn) {
-        closeLoginBtn.addEventListener("click", () => {
+        closeLoginBtn.removeEventListener("click", closeLoginModal);
+        closeLoginBtn.addEventListener("click", closeLoginModal);
+        function closeLoginModal() {
             const modal = document.getElementById("studentLoginModal");
             if (modal) {
                 modal.classList.add("hidden");
                 modal.classList.remove("modal-visible");
             }
-        });
+        }
     } else {
         console.warn("closeStudentLoginBtn not found");
     }
@@ -640,150 +771,279 @@ function setupEventListeners() {
     const navButtons = [
         { id: "studentHomeBtn", section: "studentHomeSection", action: loadHomeData },
         { id: "homeworkListBtn", section: "homeworkListSection", action: () => loadHomework(homework, studentData, 1) },
-        { id: "submitHomeworkBtn", section: "submitHomeworkSection", action: () => updateFormOptions(homework) },
         { id: "attendanceBtn", section: "attendanceSection", action: () => loadAttendance(attendance, studentData) },
         { id: "sessionalMarksBtn", section: "sessionalMarksSection", action: () => loadSessionalMarks(sessionalMarks, 1) },
         { id: "studentAnalyticsBtn", section: "studentAnalyticsSection", action: () => loadAnalytics(homework, sessionalMarks, studentData) },
+        { id: "profileBtn", section: "profileSection", action: () => loadProfile(studentData, classes) },
         { id: "studentSettingsBtn", section: "studentSettingsSection", action: () => {
             const settingsRollNumber = document.getElementById("settingsRollNumber");
             if (settingsRollNumber) settingsRollNumber.value = studentData?.rollNumber || "";
-            updateClassDisplay(classes, studentData);
+            updateClassDisplay(classes, studentData, "settingsClass");
         }}
     ];
     navButtons.forEach(({ id, section, action }) => {
         const btn = document.getElementById(id);
         if (btn) {
-            btn.addEventListener("click", () => {
+            btn.removeEventListener("click", handleNavClick);
+            btn.addEventListener("click", handleNavClick);
+            function handleNavClick() {
                 toggleSection(section);
                 action();
-            });
+            }
         } else {
             console.warn(`Navigation button ${id} not found`);
+        }
+    });
+
+    // Dashboard Card Click Events
+    const statCards = document.querySelectorAll(".stat-card");
+    statCards.forEach(card => {
+        card.removeEventListener("click", handleStatCardClick);
+        card.addEventListener("click", handleStatCardClick);
+        function handleStatCardClick() {
+            const spanId = card.querySelector("span:last-child").id;
+            if (["pendingHomework", "submittedHomework"].includes(spanId)) {
+                toggleSection("homeworkListSection");
+                loadHomework(homework, studentData, 1);
+            } else if (spanId === "attendanceRate") {
+                toggleSection("attendanceSection");
+                loadAttendance(attendance, studentData);
+            } else if (spanId === "sessionalMarksAvg") {
+                toggleSection("sessionalMarksSection");
+                loadSessionalMarks(sessionalMarks, 1);
+            }
         }
     });
 
     // Logout
     const logoutBtn = document.getElementById("studentLogoutBtn");
     if (logoutBtn) {
-        logoutBtn.addEventListener("click", async () => {
+        logoutBtn.removeEventListener("click", handleLogout);
+        logoutBtn.addEventListener("click", handleLogout);
+        async function handleLogout() {
             const cleanup = setupRealTimeListeners();
             await cleanup();
             await logout();
-        });
+        }
     } else {
         console.warn("studentLogoutBtn not found");
     }
 
-    // Submit Homework
-    const submitHomeworkBtn = document.getElementById("submitHomeworkSubmitBtn");
-    if (submitHomeworkBtn) {
-        submitHomeworkBtn.addEventListener("click", async () => {
-            const homeworkId = document.getElementById("homeworkSelect")?.value;
-            const file = document.getElementById("submissionFile")?.files[0];
-            const notes = document.getElementById("submissionNotes")?.value || "";
-            if (!homeworkId || !file) {
-                showNotification("Please select a homework and file!", "error");
+    // Profile Form Submission
+    const profileForm = document.getElementById("profileForm");
+    if (profileForm) {
+        profileForm.removeEventListener("submit", handleProfileSubmit);
+        profileForm.addEventListener("submit", handleProfileSubmit);
+        async function handleProfileSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById("profileName")?.value;
+            const email = document.getElementById("profileEmail")?.value;
+            const password = document.getElementById("profilePassword")?.value;
+            const bio = document.getElementById("profileBio")?.value;
+            const phone = document.getElementById("profilePhone")?.value;
+            const avatarFile = document.getElementById("avatarUpload")?.files[0];
+
+            console.log("Profile form submitted with:", {
+                name,
+                email,
+                password: password ? "[REDACTED]" : "",
+                bio,
+                phone,
+                avatarFile: avatarFile ? avatarFile.name : null
+            });
+
+            if (!name) {
+                showNotification("Name is required", "error");
                 return;
             }
-            if (!confirm("Are you sure you want to submit this homework?")) return;
+
+            if (!confirm("Are you sure you want to update your profile?")) return;
+
             try {
-                await submitHomework(homeworkId, file, notes);
-                resetForm("submitHomeworkForm");
-                toggleSection("homeworkListSection");
+                await updateProfile(name, email, password, bio, phone, avatarFile);
+                document.getElementById("profilePassword").value = "";
+                document.getElementById("avatarUpload").value = "";
+                const modal = document.getElementById("editProfileModal");
+                if (modal) {
+                    modal.classList.add("hidden");
+                    modal.classList.remove("modal-visible");
+                    document.body.classList.remove("modal-open");
+                }
             } catch (error) {
-                console.error("Error processing submission:", error);
-                showNotification("Error processing submission: " + error.message, "error");
+                console.error("Error processing profile update:", error);
+                showNotification(`Error processing profile update: ${error.message}`, "error");
             }
-        });
+        }
     } else {
-        console.warn("submitHomeworkSubmitBtn not found");
+        console.warn("profileForm not found");
+    }
+
+    // Edit Profile Modal
+    const editProfileBtn = document.getElementById("editProfileBtn");
+    if (editProfileBtn) {
+        editProfileBtn.removeEventListener("click", openEditProfileModal);
+        editProfileBtn.addEventListener("click", openEditProfileModal);
+        function openEditProfileModal() {
+            console.log("openEditProfileModal called via editProfileBtn click");
+            const modal = document.getElementById("editProfileModal");
+            if (modal) {
+                modal.classList.remove("hidden");
+                modal.classList.add("modal-visible");
+                document.body.classList.add("modal-open");
+            } else {
+                console.warn("editProfileModal not found");
+            }
+        }
+    } else {
+        console.warn("editProfileBtn not found");
+    }
+
+    const closeEditProfileBtn = document.getElementById("closeEditProfileBtn");
+    if (closeEditProfileBtn) {
+        closeEditProfileBtn.removeEventListener("click", closeEditProfileModal);
+        closeEditProfileBtn.addEventListener("click", closeEditProfileModal);
+        function closeEditProfileModal() {
+            const modal = document.getElementById("editProfileModal");
+            if (modal) {
+                modal.classList.add("hidden");
+                modal.classList.remove("modal-visible");
+                document.body.classList.remove("modal-open");
+            }
+        }
+    } else {
+        console.warn("closeEditProfileBtn not found");
+    }
+
+    // Avatar Upload Preview
+    const avatarUpload = document.getElementById("avatarUpload");
+    if (avatarUpload) {
+        avatarUpload.removeEventListener("change", handleAvatarUpload);
+        avatarUpload.addEventListener("change", handleAvatarUpload);
+        function handleAvatarUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                console.log("Avatar file selected:", file.name);
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const avatarImg = document.getElementById("profileAvatar");
+                    if (avatarImg) {
+                        avatarImg.src = event.target.result;
+                        console.log("Avatar preview updated:", avatarImg.src);
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+    } else {
+        console.warn("avatarUpload element not found");
+    }
+
+    // Homework Table File Upload
+    const homeworkTableBody = document.querySelector("#homeworkTable tbody");
+    if (homeworkTableBody) {
+        homeworkTableBody.removeEventListener("change", handleHomeworkUpload);
+        homeworkTableBody.addEventListener("change", handleHomeworkUpload);
+        async function handleHomeworkUpload(e) {
+            if (e.target.classList.contains("upload-input")) {
+                const homeworkId = e.target.dataset.id;
+                const file = e.target.files[0];
+                if (!file) {
+                    showNotification("No file selected!", "error");
+                    return;
+                }
+                if (!confirm("Are you sure you want to submit this homework?")) {
+                    e.target.value = "";
+                    return;
+                }
+                const notes = prompt("Enter any notes for this submission (optional):") || "";
+                try {
+                    await submitHomework(homeworkId, file, notes);
+                    loadHomework(homework, studentData, currentPage);
+                } catch (error) {
+                    console.error("Error processing submission:", error);
+                    showNotification("Error processing submission: " + error.message, "error");
+                }
+                e.target.value = "";
+            }
+        }
+    } else {
+        console.warn("homeworkTable tbody not found");
     }
 
     // Filters and Pagination
     const homeworkSearchInput = document.getElementById("homeworkSearchInput");
     if (homeworkSearchInput) {
-        homeworkSearchInput.addEventListener("input", () => loadHomework(homework, studentData, 1));
+        homeworkSearchInput.removeEventListener("input", handleHomeworkSearch);
+        homeworkSearchInput.addEventListener("input", handleHomeworkSearch);
+        function handleHomeworkSearch() {
+            loadHomework(homework, studentData, 1);
+        }
     }
     const homeworkStatusFilter = document.getElementById("homeworkStatusFilter");
     if (homeworkStatusFilter) {
-        homeworkStatusFilter.addEventListener("change", () => loadHomework(homework, studentData, 1));
+        homeworkStatusFilter.removeEventListener("change", handleHomeworkStatusFilter);
+        homeworkStatusFilter.addEventListener("change", handleHomeworkStatusFilter);
+        function handleHomeworkStatusFilter() {
+            loadHomework(homework, studentData, 1);
+        }
     }
     const homeworkPrevPageBtn = document.getElementById("homeworkPrevPageBtn");
     if (homeworkPrevPageBtn) {
-        homeworkPrevPageBtn.addEventListener("click", () => loadHomework(homework, studentData, currentPage - 1));
+        homeworkPrevPageBtn.removeEventListener("click", handleHomeworkPrevPage);
+        homeworkPrevPageBtn.addEventListener("click", handleHomeworkPrevPage);
+        function handleHomeworkPrevPage() {
+            loadHomework(homework, studentData, currentPage - 1);
+        }
     }
     const homeworkNextPageBtn = document.getElementById("homeworkNextPageBtn");
     if (homeworkNextPageBtn) {
-        homeworkNextPageBtn.addEventListener("click", () => loadHomework(homework, studentData, currentPage + 1));
+        homeworkNextPageBtn.removeEventListener("click", handleHomeworkNextPage);
+        homeworkNextPageBtn.addEventListener("click", handleHomeworkNextPage);
+        function handleHomeworkNextPage() {
+            loadHomework(homework, studentData, currentPage + 1);
+        }
     }
 
     const attendanceDateFilter = document.getElementById("attendanceDateFilter");
     if (attendanceDateFilter) {
-        attendanceDateFilter.addEventListener("change", () => loadAttendance(attendance, studentData));
+        attendanceDateFilter.removeEventListener("change", handleAttendanceFilter);
+        attendanceDateFilter.addEventListener("change", handleAttendanceFilter);
+        function handleAttendanceFilter() {
+            loadAttendance(attendance, studentData);
+        }
     }
 
     const marksSearchInput = document.getElementById("marksSearchInput");
     if (marksSearchInput) {
-        marksSearchInput.addEventListener("input", () => loadSessionalMarks(sessionalMarks, 1));
+        marksSearchInput.removeEventListener("input", handleMarksSearch);
+        marksSearchInput.addEventListener("input", handleMarksSearch);
+        function handleMarksSearch() {
+            loadSessionalMarks(sessionalMarks, 1);
+        }
     }
     const marksExamTypeFilter = document.getElementById("marksExamTypeFilter");
     if (marksExamTypeFilter) {
-        marksExamTypeFilter.addEventListener("change", () => loadSessionalMarks(sessionalMarks, 1));
+        marksExamTypeFilter.removeEventListener("change", handleMarksExamTypeFilter);
+        marksExamTypeFilter.addEventListener("change", handleMarksExamTypeFilter);
+        function handleMarksExamTypeFilter() {
+            loadSessionalMarks(sessionalMarks, 1);
+        }
     }
     const marksPrevPageBtn = document.getElementById("marksPrevPageBtn");
     if (marksPrevPageBtn) {
-        marksPrevPageBtn.addEventListener("click", () => loadSessionalMarks(sessionalMarks, currentPage - 1));
+        marksPrevPageBtn.removeEventListener("click", handleMarksPrevPage);
+        marksPrevPageBtn.addEventListener("click", handleMarksPrevPage);
+        function handleMarksPrevPage() {
+            loadSessionalMarks(sessionalMarks, currentPage - 1);
+        }
     }
     const marksNextPageBtn = document.getElementById("marksNextPageBtn");
     if (marksNextPageBtn) {
-        marksNextPageBtn.addEventListener("click", () => loadSessionalMarks(sessionalMarks, currentPage + 1));
-    }
-
-    // Test Attendance Fetch
-    const testAttendanceBtn = document.getElementById("testAttendanceBtn");
-    if (testAttendanceBtn) {
-        testAttendanceBtn.addEventListener("click", async () => {
-            try {
-                showLoading();
-                const data = await getData(`teachers/${teacherId}/attendance`);
-                console.log("Manual attendance fetch:", JSON.stringify(data, null, 2));
-                loadAttendance(data || {}, studentData);
-                showNotification("Attendance fetched manually!", "success");
-            } catch (error) {
-                console.error("Manual attendance fetch error:", error);
-                showNotification("Error fetching attendance: " + error.message, "error");
-            } finally {
-                hideLoading();
-            }
-        });
-    } else {
-        console.warn("testAttendanceBtn not found");
-    }
-
-    // Settings
-    const themeSelect = document.getElementById("studentThemeSelect");
-    if (themeSelect) {
-        themeSelect.addEventListener("change", (e) => {
-            const theme = e.target.value;
-            document.documentElement.setAttribute("data-theme", theme);
-            localStorage.setItem("theme", theme);
-        });
-    }
-
-    // Homework Table Action Buttons
-    const homeworkTableBody = document.querySelector("#homeworkTable tbody");
-    if (homeworkTableBody) {
-        homeworkTableBody.addEventListener("click", (e) => {
-            if (e.target.classList.contains("submit-btn")) {
-                const homeworkId = e.target.dataset.id;
-                const homeworkSelect = document.getElementById("homeworkSelect");
-                if (homeworkSelect) homeworkSelect.value = homeworkId;
-                toggleSection("submitHomeworkSection");
-                updateFormOptions(homework);
-            }
-        });
-    } else {
-        console.warn("homeworkTable tbody not found");
+        marksNextPageBtn.removeEventListener("click", handleMarksNextPage);
+        marksNextPageBtn.addEventListener("click", handleMarksNextPage);
+        function handleMarksNextPage() {
+            loadSessionalMarks(sessionalMarks, currentPage + 1);
+        }
     }
 }
 
@@ -830,6 +1090,14 @@ window.onload = async () => {
     initializeTheme();
     setupMobileMenu();
     setupEventListeners();
+
+    // Ensure edit profile modal is hidden on page load
+    const editProfileModal = document.getElementById("editProfileModal");
+    if (editProfileModal) {
+        editProfileModal.classList.add("hidden");
+        editProfileModal.classList.remove("modal-visible");
+        document.body.classList.remove("modal-open");
+    }
 
     const sessionData = await validateSession();
     if (sessionData) {
